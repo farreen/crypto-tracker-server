@@ -1,4 +1,11 @@
-import userRegister from '../model/accessModel.js'
+import UserModel from '../model/accessModel.js';
+import bcrypt from 'bcrypt';
+import dotenv from 'dotenv';
+import express from 'express'
+import { createAccessToken, createRefreshToken } from '../middleware/auth.js';
+const app = express();
+dotenv.config();
+
 export const register = async (req, res) => {
     try {
         const { username, email, password } = req.body.userData;
@@ -6,17 +13,15 @@ export const register = async (req, res) => {
             res.status(400).send("cannot save blank data");
         } else {
             const salt = await bcrypt.genSalt();
-            console.log("salt", salt)
             const hashedPassword = await bcrypt.hash(password, salt)
-            const newuser = await userRegister.create({ username, email, password: hashedPassword })
-            console.log("newuser..", newuser)
-            const savedAdmin = await newuser.save();
-            console.log("savedAdmin", savedAdmin);
-            res.status(200).send("successfully added")
+            const user = await UserModel.create({ username, email, password: hashedPassword })
+            const accessToken = createAccessToken(user._id);
+            const refreshToken = createRefreshToken(user._id);
+            res.status(201).json({ user, accessToken })
         }
     } catch (error) {
         console.log("Error", error)
-        res.status(500).send("Error", error.message);
+        res.status(500).send(error.message);
     }
 }
 
@@ -24,9 +29,8 @@ export const register = async (req, res) => {
 
 export const login = async (req, res) => {
     try {
-        console.log("adminLogin", req.body)
         const { email, password } = req.body.obj
-        const user = await userRegister.findOne({ email: email})
+        const user = await UserModel.findOne({ email })
         console.log("userLog", user);
         if (!user) {
             res.status(400).send("User doesnot exist");
@@ -36,12 +40,13 @@ export const login = async (req, res) => {
             if (!dbpassword) {
                 res.status(400).send("username and password doesnot exist");
             } else {
-                console.log("matched..")
-                res.status(200).send(user);
+                const accessToken = createAccessToken(user._id);
+                const refreshToken = createRefreshToken(user._id);
+                res.status(200).json({ user, accessToken })
             }
         }
     } catch (err) {
-        res.status(400).send("error", err)
+        res.status(400).send(err.message)
     }
 }
 
